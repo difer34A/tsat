@@ -1,0 +1,164 @@
+import processing.serial.*;
+
+Serial myPort;
+float sensorValue1;
+float sensorValue2;
+float sensorValue3;
+float sensorValue4;
+
+float[] graphData1;
+float[] graphData2;
+float[] graphData3;
+float[] graphData4;
+int graphLength = 200;
+int graphHeight = 100;
+int graphMargin = 50;
+
+void setup() {
+  myPort = new Serial(this, "COM3", 9600);
+  myPort.bufferUntil('\n');
+  size(800, 800);
+  textAlign(CENTER, CENTER);
+  
+  graphData1 = new float[graphLength];
+  graphData2 = new float[graphLength];
+  graphData3 = new float[graphLength];
+  graphData4 = new float[graphLength];
+}
+
+color graphColor1 = color(255, 0, 0);    // Red
+color graphColor2 = color(0, 255, 0);    // Green
+color graphColor3 = color(0, 0, 255);    // Blue
+color graphColor4 = color(255, 255, 0);  // Yellow
+
+void draw() {
+  while (myPort.available() > 0) {
+    String data = myPort.readStringUntil('\n');
+
+    if (data != null) {
+      String[] values = data.trim().split(",");
+
+      if (values.length == 4) {
+        try {
+          sensorValue1 = Float.parseFloat(values[0]);
+          sensorValue2 = Float.parseFloat(values[1]);
+          sensorValue3 = Float.parseFloat(values[2]);
+          sensorValue4 = Float.parseFloat(values[3]);
+        } catch (NumberFormatException e) {
+          println("Error parsing data: " + data);
+        }
+      } else {
+        println("Invalid data format: " + data);
+      }
+    }
+  }
+
+  background(0);
+  
+  // Draw graphs
+  int graphWidth = (width - 3 * graphMargin) / 2;
+  int graphHeight = (height - 3 * graphMargin) / 2;
+  
+  int graphPosX1 = graphMargin;
+  int graphPosX2 = graphMargin * 2 + graphWidth;
+  int graphPosY1 = graphMargin;
+  int graphPosY2 = graphMargin * 2 + graphHeight;
+  
+  drawGraph(graphData1, graphPosX1, graphPosY1, graphWidth, graphHeight, sensorValue1, graphColor1);
+  drawGraph(graphData2, graphPosX2, graphPosY1, graphWidth, graphHeight, sensorValue2, graphColor2);
+  drawUVGraph(graphData3, graphPosX1, graphPosY2, graphWidth, graphHeight, sensorValue3, graphColor3);
+
+  drawGraph(graphData4, graphPosX2, graphPosY2, graphWidth, graphHeight, sensorValue4, graphColor4);
+
+  // Draw border around graphs
+  stroke(255);
+  strokeWeight(2);
+  noFill();
+  
+  // Graph
+  rect(graphPosX1, graphPosY1, graphWidth, graphHeight);
+  rect(graphPosX2, graphPosY1, graphWidth, graphHeight);
+  rect(graphPosX1, graphPosY2, graphWidth, graphHeight);
+  rect(graphPosX2, graphPosY2, graphWidth, graphHeight);
+  
+  // Display data values
+  textSize(20);
+  fill(255);
+  textAlign(LEFT, CENTER);
+  text("Temperature: " + sensorValue1 + "°C", graphPosX1, graphPosY1 - 20);
+  text("Humidity: " + sensorValue2 + "%", graphPosX2, graphPosY1 - 20);
+  textAlign(LEFT, CENTER);
+  text("UV Level: " + sensorValue3 + " (mW/cm2)", graphPosX1, graphPosY2 + graphHeight + 20);
+  text("UV Intensity: " + sensorValue4, graphPosX2, graphPosY2 + graphHeight + 20);
+}
+
+void drawGraph(float[] data, int posX, int posY, int graphWidth, int graphHeight, float sensorValue, color lineColor) {
+  // Shift the graph data to the left
+  for (int i = 0; i < data.length - 1; i++) {
+    data[i] = data[i + 1];
+  }
+  
+  // Add the new data point to the graph
+  data[data.length - 1] = sensorValue;
+  
+  // Draw the graph lines and numbers
+  stroke(lineColor);
+  textSize(12);
+  textAlign(RIGHT, CENTER);
+  
+  for (int i = 0; i < data.length - 1; i++) {
+    float x1 = map(i, 0, data.length - 1, posX, posX + graphWidth);
+    float y1 = map(data[i], 0, graphHeight, posY + graphHeight, posY);
+    float x2 = map(i + 1, 0, data.length - 1, posX, posX + graphWidth);
+    float y2 = map(data[i + 1], 0, graphHeight, posY + graphHeight, posY);
+    line(x1, y1, x2, y2);
+  }
+  
+  // Display the value numbers vertically on the side of the graph
+  textAlign(RIGHT, BOTTOM);
+  for (int i = 0; i < data.length; i++) {
+    float value = data[i];
+    float x = posX - 5;
+    float y = map(value, 0, graphHeight, posY + graphHeight, posY);
+  }
+  fill(255);
+  textAlign(LEFT, CENTER);
+  textSize(12);
+  text(nf(sensorValue, 0, 0), posX + graphWidth - 30, posY + 20); // Display the value at the top-right corner of the graph
+}
+
+void drawUVGraph(float[] data, int posX, int posY, int graphWidth, int graphHeight, float sensorValue, color lineColor) {
+  // Shift the graph data to the left
+  for (int i = 0; i < data.length - 1; i++) {
+    data[i] = data[i + 1];
+  }
+
+  // Add the new data point to the graph with scaling
+  float newData = map(sensorValue, 0, 1500, posY + graphHeight, posY); // Adjust the mapping to match the UV data range
+  data[data.length - 1] = newData;
+
+  // Draw the graph lines
+  stroke(lineColor);
+  for (int i = 0; i < data.length - 1; i++) {
+    float x1 = map(i, 0, data.length - 1, posX, posX + graphWidth);
+    float y1 = map(data[i], posY + graphHeight, posY, posY + graphHeight - 10, posY + 10); // Adjust the y-axis range for number display
+    float x2 = map(i + 1, 0, data.length - 1, posX, posX + graphWidth);
+    float y2 = map(data[i + 1], posY + graphHeight, posY, posY + graphHeight - 10, posY + 10); // Adjust the y-axis range for number display
+    
+    // Clip the line to the graph rectangle
+    x1 = constrain(x1, posX, posX + graphWidth);
+    y1 = constrain(y1, posY + 10, posY + graphHeight - 10); // Adjust the y-axis range for number display
+    x2 = constrain(x2, posX, posX + graphWidth);
+    y2 = constrain(y2, posY + 10, posY + graphHeight - 10); // Adjust the y-axis range for number display
+    
+    line(x1, y1, x2, y2);
+  }
+
+  // Display the current value on the graph
+  fill(255);
+  textAlign(LEFT, CENTER);
+  textSize(12);
+  text(nf(sensorValue, 0, 0), posX + graphWidth - 30, posY + 20); // Display the value at the top-right corner of the graph
+}
+
+
